@@ -78,6 +78,9 @@ class NtfyPlugin(Star):
         object.__setattr__(tool, "_fetch_topic", self._fetch_topic)
         self.context.add_llm_tools(tool)  # type: ignore[attr-defined]
 
+        conv_mgr = self.context.conversation_manager  # type: ignore[attr-defined]
+        conv_mgr.register_on_session_deleted(self._on_session_deleted)
+
     async def initialize(self):
         self._running = True
         subs = cast(dict, await self.get_kv_data("subscriptions", {}))
@@ -97,6 +100,18 @@ class NtfyPlugin(Star):
             except asyncio.CancelledError:
                 pass
         logger.info("ntfy plugin terminated")
+
+    async def _on_session_deleted(self, session_id: str):
+        subs = cast(dict, await self.get_kv_data("subscriptions", {}))
+        if session_id in subs:
+            topics = subs[session_id].get("topics", [])
+            del subs[session_id]
+            await self.put_kv_data("subscriptions", subs)
+            await self._start_connection()
+            logger.info(
+                f"ntfy: cleaned up subscription for deleted session {session_id} "
+                f"(topics: {topics})"
+            )
 
     # ------------------------------------------------------------------
     # Auth helpers
