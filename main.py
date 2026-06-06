@@ -2,13 +2,69 @@ import asyncio
 import base64
 import datetime
 import json
-from typing import Optional, cast
+from dataclasses import field as dc_field
+from typing import Any, Optional, cast
 
 import aiohttp
+from pydantic import Field
+from pydantic.dataclasses import dataclass
 
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import MessageChain, filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
+from astrbot.core.agent.run_context import ContextWrapper
+from astrbot.core.agent.tool import FunctionTool, ToolExecResult
+from astrbot.core.astr_agent_context import AstrAgentContext
+
+
+@dataclass
+class FetchNtfyMessagesTool(FunctionTool[AstrAgentContext]):
+    name: str = "fetch_ntfy_messages"
+    description: str = "Fetch recent messages from a ntfy.sh topic."
+    parameters: dict = Field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "The ntfy topic name to fetch messages from.",
+                },
+                "since": {
+                    "type": "string",
+                    "description": 'Time range such as "10m", "1h", "all". Default is "10m".',
+                },
+            },
+            "required": ["topic"],
+        }
+    )
+    _fetch_topic: Any = dc_field(init=False, default=None)
+
+    async def call(
+        self,
+        _context: ContextWrapper[AstrAgentContext],  # type: ignore[valid-type]
+        **kwargs: Any,
+    ) -> ToolExecResult:
+        topic = kwargs.get("topic", "")
+        since = kwargs.get("since", "10m")
+        result = cast(
+            Optional[list], await self._fetch_topic(topic, since)
+        )
+        if result is None:
+            return "Failed to fetch messages from ntfy."
+        if not result:
+            return f"No messages in topic '{topic}' for the last {since}."
+
+        lines = [f"Topic '{topic}' — {len(result)} message(s):"]
+        for msg in result[-20:]:
+            t = datetime.datetime.fromtimestamp(
+                msg.get("time", 0)
+            ).strftime("%Y-%m-%d %H:%M:%S")
+            line = f"[{t}] {msg.get('title', '')}: {msg.get('message', '')}"
+            if msg.get("tags"):
+                line += f" [tags: {', '.join(msg['tags'])}]"
+            lines.append(line)
+
+        return "\n".join(lines)
 
 
 class NtfyPlugin(Star):
@@ -17,6 +73,10 @@ class NtfyPlugin(Star):
         self.config = config
         self._conn_task: Optional[asyncio.Task] = None
         self._running = False
+
+        tool = FetchNtfyMessagesTool()
+        object.__setattr__(tool, "_fetch_topic", self._fetch_topic)
+        self.context.add_llm_tools(tool)  # type: ignore[attr-defined]
 
     async def initialize(self):
         self._running = True
@@ -339,42 +399,6 @@ class NtfyPlugin(Star):
                 line += f" {msg['title']}"
             if msg.get("message"):
                 line += f" — {msg['message']}"
-            lines.append(line)
-
-        yield event.plain_result("\n".join(lines))
-
-    # ------------------------------------------------------------------
-    # AI Tool
-    # ------------------------------------------------------------------
-
-    @filter.llm_tool(name="fetch_ntfy_messages")
-    async def fetch_ntfy_messages(
-        self, event: AstrMessageEvent, topic: str, since: str = "10m"
-    ):
-        """Fetch recent messages from a ntfy.sh topic.
-
-        Args:
-            topic(string): The ntfy topic name to fetch messages from.
-            since(string): Time range such as "10m", "1h", "all". Default is "10m".
-        """
-        messages = await self._fetch_topic(topic, since)
-        if messages is None:
-            yield event.plain_result("Failed to fetch messages from ntfy.")
-            return
-        if not messages:
-            yield event.plain_result(
-                f"No messages in topic '{topic}' for the last {since}."
-            )
-            return
-
-        lines = []
-        for msg in messages[-20:]:
-            t = datetime.datetime.fromtimestamp(msg.get("time", 0)).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-            line = f"[{t}] {msg.get('title', '')}: {msg.get('message', '')}"
-            if msg.get("tags"):
-                line += f" [tags: {', '.join(msg['tags'])}]"
             lines.append(line)
 
         yield event.plain_result("\n".join(lines))
