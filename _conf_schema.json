@@ -1,0 +1,51 @@
+{
+    "server_url": {
+        "type": "string",
+        "description": "ntfy server URL",
+        "default": "https://ntfy.sh",
+        "hint": "Use full URL for self-hosted instances, e.g. https://ntfy.example.com"
+    },
+    "auth_method": {
+        "type": "string",
+        "description": "Authentication method",
+        "default": "none",
+        "options": ["none", "basic", "token"]
+    },
+    "username": {
+        "type": "string",
+        "description": "Username for Basic Auth",
+        "default": "",
+        "hint": "Only required when auth_method=basic"
+    },
+    "password": {
+        "type": "string",
+        "description": "Password for Basic Auth",
+        "default": "",
+        "obvious_hint": "Password stored in plain text. Keep your config file secure.",
+        "hint": "Only required when auth_method=basic"
+    },
+    "access_token": {
+        "type": "string",
+        "description": "Access token for token-based auth",
+        "default": "",
+        "obvious_hint": "Token stored in plain text. Keep your config file secure.",
+        "hint": "Only required when auth_method=token"
+    },
+    "default_priority": {
+        "type": "string",
+        "description": "Default priority filter (comma-separated, e.g. 4,5). Leave empty to disable.",
+        "default": "",
+        "hint": "1=min, 2=low, 3=default, 4=high, 5=urgent"
+    },
+    "default_tags": {
+        "type": "string",
+        "description": "Default tags filter (comma-separated, AND logic). Leave empty to disable.",
+        "default": "",
+        "hint": "e.g. error,alert means messages must have both tags"
+    },
+    "reconnect_max_delay": {
+        "type": "int",
+        "description": "Max reconnection delay in seconds",
+        "default": 60
+    }
+}
