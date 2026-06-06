@@ -7,8 +7,7 @@ from typing import Optional, cast
 import aiohttp
 
 from astrbot.api import AstrBotConfig, logger
-from astrbot.api.event import filter, AstrMessageEvent
-from astrbot.api.message_components import Plain
+from astrbot.api.event import MessageChain, filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
 
 
@@ -188,7 +187,7 @@ class NtfyPlugin(Star):
             if not self._match_filters(data, info):
                 continue
             try:
-                await self.context.send_message(session_id, [Plain(text)])  # type: ignore[attr-defined]
+                await self.context.send_message(session_id, MessageChain().message(text))  # type: ignore[attr-defined]
             except Exception as e:
                 logger.error(f"ntfy failed to send to {session_id}: {e}")
 
