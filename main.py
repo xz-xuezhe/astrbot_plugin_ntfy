@@ -220,6 +220,12 @@ class NtfyPlugin(Star):
 
             except asyncio.CancelledError:
                 break
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"ntfy connection timed out, retrying in {retry_delay}s"
+                )
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, max_delay)
             except aiohttp.ClientError as e:
                 logger.error(
                     f"ntfy connection error: {e}, retrying in {retry_delay}s"
@@ -228,7 +234,8 @@ class NtfyPlugin(Star):
                 retry_delay = min(retry_delay * 2, max_delay)
             except Exception as e:
                 logger.error(
-                    f"ntfy unexpected error: {e}, retrying in {retry_delay}s"
+                    f"ntfy unexpected error: {type(e).__name__}: {e}, "
+                    f"retrying in {retry_delay}s"
                 )
                 await asyncio.sleep(retry_delay)
                 retry_delay = min(retry_delay * 2, max_delay)
