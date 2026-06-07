@@ -185,7 +185,8 @@ class NtfyPlugin(Star):
             logger.info(f"ntfy connecting to {url}")
 
             try:
-                async with aiohttp.ClientSession() as session:
+                timeout = aiohttp.ClientTimeout(total=None, sock_read=90)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
                     async with session.get(
                         url, params=params, headers=headers
                     ) as resp:
@@ -221,7 +222,7 @@ class NtfyPlugin(Star):
             except asyncio.CancelledError:
                 break
             except asyncio.TimeoutError:
-                logger.error(
+                logger.warning(
                     f"ntfy connection timed out, retrying in {retry_delay}s"
                 )
                 await asyncio.sleep(retry_delay)
